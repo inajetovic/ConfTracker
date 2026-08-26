@@ -12,28 +12,8 @@ The frontend is intentionally static. The automatic part is a scheduled GitHub A
 4. `data.json` is updated.
 5. The website reads `data.json` and immediately shows the new dates.
 
-### Why one parser per conference?
+## How to use
 
-There is no universal CFP format. Some conferences use HTML tables, some use plain text, some use CMT/OpenReview/ConfTool pages, and some publish deadlines in PDFs or announcements. A single generic scraper will eventually produce false dates.
-
-For reliability, each conference should have an adapter with:
-- official source URL(s)
-- CSS selectors / regex / PDF extraction rules
-- timezone
-- deadline type
-- validation rules
-- fallback behavior
-
-The updater should never guess. If extraction fails, keep the previous value and flag the source for manual review.
-
-## Deployment
-
-Put this folder in a GitHub repository and enable GitHub Pages. The repository can then serve `index.html` while the scheduled Action keeps `data.json` fresh.
-
-## Next step
-
-Add adapters for all 11 conferences and a notification layer (email, Telegram, Discord or calendar) for changes such as:
-- new deadline published
-- deadline extended
-- deadline moved
-- CFP opened
+1. run `update_deadlines.py`
+2. run `python3 -m http.server 8000`
+3. go to http://localhost:8000/
