@@ -805,15 +805,41 @@ def ensure_placeholders(items: list[dict], confs: list[Conference], editions: di
 
 
 def prune(items: list[dict]) -> list[dict]:
-    """Evita che il file cresca all'infinito: via le cose molto vecchie."""
+    """Evita che il file cresca all'infinito e toglie i record che non dicono nulla.
+
+    Un record senza data non e' informativo in due casi: se e' marcato "past"
+    (scadenza passata di cui non si conosce la data: l'interfaccia lo mostrerebbe
+    come "not published yet", cioe' il contrario del vero) o se e' il segnaposto
+    di un'edizione gia' superata da una piu' recente.
+    Un record annotato a mano (noteManual) non viene mai eliminato.
+    """
     limit = (TODAY - datetime.timedelta(days=365)).isoformat()
+
+    def edition_of(it: dict) -> int:
+        e = str(it.get("edition", ""))
+        return int(e) if e.isdigit() else 0
+
+    newest: dict[str, int] = {}
+    for it in items:
+        n = str(it.get("name", ""))
+        newest[n] = max(newest.get(n, 0), edition_of(it))
+
     out = []
     for it in items:
+        if it.get("noteManual"):
+            out.append(it)
+            continue
         d = it.get("deadline")
         if d and d < limit:
             continue
-        if not d and str(it.get("edition", "9999")).isdigit() and int(it["edition"]) < TODAY.year:
-            continue
+        if not d:
+            ed = edition_of(it)
+            if ed and ed < TODAY.year:
+                continue
+            if str(it.get("status", "")).lower().startswith("past"):
+                continue
+            if ed and ed <= TODAY.year and newest.get(str(it.get("name", "")), 0) > ed:
+                continue
         out.append(it)
     return out
 
@@ -920,7 +946,25 @@ def selftest() -> int:
     check(extract(qc0, "https://qcrypt.net/2026/2027/", host_page, 2027) == [],
           "bando di hosting scambiato per CFP")
 
-    # 5. indice quantum.technology: scoperta URL + deadline di riserva
+    # 5. record senza data e senza informazione vanno via
+    stale = [
+        {"name": "AQIS", "edition": "2026", "deadline": None, "status": "past",
+         "note": "submission deadline has passed"},                      # niente data + past
+        {"name": "AQIS", "edition": "2027", "deadline": None, "status": "tbd"},
+        {"name": "QPL", "edition": "2026", "deadline": None, "status": "tbd"},   # superato dal 2027
+        {"name": "QPL", "edition": "2027", "deadline": None, "status": "tbd"},
+        {"name": "TQC", "edition": "2026", "deadline": None, "status": "tbd",
+         "noteManual": "annotato a mano"},                                # da preservare
+        {"name": "QIP", "edition": "2027", "deadline": "2026-12-04", "status": "official"},
+    ]
+    kept = {(x["name"], x["edition"]) for x in prune(stale)}
+    check(("AQIS", "2026") not in kept, "record 'past' senza data non rimosso")
+    check(("AQIS", "2027") in kept, "segnaposto dell'edizione corrente rimosso a torto")
+    check(("QPL", "2026") not in kept, "segnaposto superato non rimosso")
+    check(("TQC", "2026") in kept, "record annotato a mano eliminato")
+    check(("QIP", "2027") in kept, "deadline valida eliminata")
+
+    # 6. indice quantum.technology: scoperta URL + deadline di riserva
     dir_html = """<h1>2027 Conferences</h1><ul>
       <li><a href="https://quantum.technology/index.html">Home</a></li>
       <li><b>Aug 23-27:</b> <a href="https://qcrypt.net/2026/2027/"

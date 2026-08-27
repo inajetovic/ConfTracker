@@ -34,16 +34,6 @@
   },
   {
     "name": "AQIS",
-    "edition": "2026",
-    "fullName": "Asian Quantum Information Science Conference",
-    "type": "Submission",
-    "deadline": null,
-    "status": "past",
-    "source": "https://aqis-conf.org/2026/",
-    "note": "2026 edition; submission deadline has passed"
-  },
-  {
-    "name": "AQIS",
     "edition": "2027",
     "fullName": "Asian Quantum Information Science Conference",
     "type": "Submission",

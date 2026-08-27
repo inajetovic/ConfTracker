@@ -1,6 +1,7 @@
 # Quantum CFP Tracker
 
-A lightweight web dashboard for QCrypt, QIP, TQC, QTML, QCTiP, AQIS, QCNC, QCMC, IEEE QCE / Quantum Week, QSim and QPL.
+A lightweight web dashboard for:
+QCrypt, QIP, TQC, QTML, QCTiP, AQIS, QCNC, QCMC, IEEE QCE / Quantum Week, QSim and QPL.
 
 ## How to use
 
