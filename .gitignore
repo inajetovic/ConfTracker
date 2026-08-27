@@ -1,1 +1,7 @@
-/.venv
+.cache/
+data.json.bak
+data.json.tmp
+sources.local.json
+__pycache__/
+*.pyc
+.DS_Store

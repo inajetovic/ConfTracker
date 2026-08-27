@@ -1,0 +1,51 @@
+name: Update CFP deadlines
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+  push:
+    paths:
+      - "update_deadlines.py"
+      - ".github/workflows/update-deadlines.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-deadlines
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Self-test del parser
+        run: python update_deadlines.py --selftest
+
+      - name: Aggiorna le deadline
+        run: python update_deadlines.py --no-cache
+
+      - name: Commit se qualcosa e' cambiato
+        run: |
+          set -euo pipefail
+          rm -f data.json.bak
+          if git diff --quiet -- data.json; then
+            echo "Nessuna deadline cambiata, niente commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          git commit -m "Aggiorna deadline CFP ($(date -u +%Y-%m-%d))"
+          git push
