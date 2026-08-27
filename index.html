@@ -16,6 +16,7 @@ h1{font-size:34px;margin:0 0 8px}.sub{color:var(--muted);max-width:850px}.badge{
 <span class="badge">QUANTUM CFP TRACKER</span>
 <h1>Quantum Conference Deadlines</h1>
 <div class="sub">Dashboard for tracking CFP deadlines. Upcoming and unexpired deadlines are always shown first. Data can be updated automatically by the scheduled updater in this project.</div>
+<div id="updated" class="sub" style="margin-top:8px;font-size:13px"></div>
 <div class="stats"><div class="stat"><b id="all">0</b><span>active deadline entries</span></div><div class="stat"><b id="soon">0</b><span>due within 30 days</span></div><div class="stat"><b id="tbd">0</b><span>TBD deadlines</span></div><div class="stat"><b id="past">0</b><span>past entries</span></div></div>
 <div class="toolbar"><input id="q" placeholder="Search QIP, QCrypt, QML…"><select id="f"><option value="all">All</option><option value="upcoming">Upcoming</option><option value="soon">≤ 30 days</option><option value="tbd">TBD</option><option value="past">Past</option></select></div>
 <div id="grid" class="grid"></div>
@@ -46,6 +47,14 @@ function render(){
  $("tbd").textContent=items.filter(x=>!x.deadline).length;
  $("past").textContent=items.filter(x=>x.deadline&&days(x.deadline)<0).length;
 }
-fetch("data.json").then(r=>r.json()).then(d=>{items=d;render()});
-$("q").oninput=render;$("f").onchange=render;
+function stamp(){
+ const ds=items.map(x=>x.lastChecked).filter(Boolean).sort();
+ const last=ds[ds.length-1], el=$("updated");
+ if(!last){el.textContent="";return}
+ const age=Math.floor((new Date()-new Date(last+"T12:00:00"))/86400000);
+ el.textContent=`Data last updated ${fmt(last)}`+(age<1?" (today)":` (${age} day${age===1?"":"s"} ago)`)
+   +(age>14?" — the updater may be failing, treat these dates as stale":"");
+ el.style.color=age>14?"var(--bad)":"var(--muted)";
+}
+fetch("data.json",{cache:"no-store"}).then(r=>r.json()).then(d=>{items=d;render();stamp()});$("q").oninput=render;$("f").onchange=render;
 </script></body></html>
