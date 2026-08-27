@@ -23,7 +23,14 @@ Principi di progetto (pensati per durare negli anni, senza toccare il codice):
     contiene date, il vecchio valore resta nel data.json e viene marcato
     "da verificare". Nessuna eccezione fa saltare l'intero run.
 
-5.  URL MODIFICABILI SENZA TOCCARE IL CODICE. Se una conferenza cambia
+5.  INDICE ESTERNO COME RETE DI SICUREZZA. Oltre ai siti ufficiali viene
+    letto https://quantum.technology/conf/<anno>.html (lista curata di
+    conferenze quantum): da li' si ricava il link aggiornato all'edizione -
+    l'unico modo affidabile di seguire una conferenza che cambia dominio - e,
+    in mancanza d'altro, le deadline pubblicate nell'indice, che pero' valgono
+    meno di quelle lette sul sito ufficiale. Si disattiva con --no-directory.
+
+6.  URL MODIFICABILI SENZA TOCCARE IL CODICE. Se una conferenza cambia
     dominio (tipico di QTML, che ogni anno e' ospitata da un'universita'
     diversa), basta creare sources.local.json accanto a questo file:
 
@@ -34,6 +41,7 @@ Uso:
     python update_deadlines.py --dry-run -v    # mostra cosa farebbe
     python update_deadlines.py --only QIP TQC  # solo alcune conferenze
     python update_deadlines.py --offline       # usa solo la cache locale
+    python update_deadlines.py --no-directory  # solo siti ufficiali
     python update_deadlines.py --selftest      # test del parser, niente rete
 """
 
@@ -47,7 +55,8 @@ import re
 import sys
 import time
 import unicodedata
-from dataclasses import dataclass, field
+from collections import Counter
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Optional
 
@@ -79,32 +88,48 @@ class Conference:
     paths: tuple[str, ...] = ("", "{year}/", "cfp/", "call-for-papers/", "submissions/")
     default_type: str = "Submission"
     note: str = ""
+    # nomi con cui la conferenza compare nell'indice quantum.technology
+    aliases: tuple[str, ...] = ()
+
+    def matches(self, text: str) -> bool:
+        for a in (self.name, self.full_name, *self.aliases):
+            a = a.strip()
+            if len(a) < 3:
+                continue
+            # (?<![A-Za-z]) invece di \b: "QIP2027" deve matchare "QIP"
+            if re.search(rf"(?<![A-Za-z]){re.escape(a)}(?![A-Za-z])", text, re.I):
+                return True
+        return False
 
 
 CONFERENCES: list[Conference] = [
     Conference("QIP", "Quantum Information Processing",
-               ("https://qipconference.org/",)),
+               ("https://qipconference.org/",),
+               aliases=("QIP", "Quantum Information Processing Conference")),
     Conference("QCrypt", "Quantum Cryptography",
-               ("https://qcrypt.net/",)),
+               ("https://qcrypt.net/",), aliases=("QCrypt",)),
     Conference("TQC", "Theory of Quantum Computation, Communication and Cryptography",
-               ("https://tqc-conference.org/",)),
+               ("https://tqc-conference.org/",), aliases=("TQC",)),
     Conference("QTML", "Quantum Techniques in Machine Learning",
                ("https://qtml2026.nithecs.ac.za/",),
-               note="dominio diverso ogni anno: usare sources.local.json"),
+               aliases=("QTML", "Quantum Techniques in Machine Learning"),
+               note="dominio diverso ogni anno"),
     Conference("QCTiP", "Quantum Computing Theory in Practice",
-               ("https://qctipconf.github.io/",)),
+               ("https://qctipconf.github.io/",), aliases=("QCTiP",)),
     Conference("AQIS", "Asian Quantum Information Science Conference",
-               ("https://aqis-conf.org/",)),
+               ("https://aqis-conf.org/",), aliases=("AQIS",)),
     Conference("QCNC", "Quantum Communications, Networking, and Computing",
-               ("https://www.ieee-qcnc.org/",), default_type="Technical paper"),
+               ("https://www.ieee-qcnc.org/",), default_type="Technical paper",
+               aliases=("QCNC",)),
     Conference("QCMC", "Quantum Communication, Measurement and Computing",
-               ("https://qcmc.org/",)),
+               ("https://qcmc.org/", "http://www.qcmc-conference.org/"), aliases=("QCMC",)),
     Conference("IEEE QCE / Quantum Week", "IEEE International Conference on Quantum Computing and Engineering",
-               ("https://qce.quantum.ieee.org/",), default_type="Technical paper"),
+               ("https://qce.quantum.ieee.org/",), default_type="Technical paper",
+               aliases=("QCE", "IEEE Quantum Week", "Quantum Computing and Engineering")),
     Conference("QSim", "Quantum Simulation Conference",
-               ("https://qsimconference.org/",)),
+               ("https://qsimconference.org/",), aliases=("QSim",)),
     Conference("QPL", "Quantum Physics and Logic",
-               ("https://qplconference.org/",)),
+               ("https://qplconference.org/",), aliases=("QPL", "Quantum Physics and Logic")),
 ]
 
 
@@ -127,6 +152,7 @@ def load_overrides(confs: list[Conference]) -> list[Conference]:
                 tuple(o.get("paths", c.paths)),
                 o.get("default_type", c.default_type),
                 o.get("note", c.note),
+                tuple(o.get("aliases", c.aliases)),
             )
         out.append(c)
     return out
@@ -244,7 +270,14 @@ KW_BLOCK = re.compile(
     r"early[- ]?bird|registration (?:opens|fee|closes|deadline for attend)|payment|"
     r"visa|hotel|accommodation|travel (?:grant|support) notif|banquet|"
     r"conference dates|workshop dates|tutorial day|programme online|program online|"
-    r"proceedings|final version|copyright", re.I)
+    r"proceedings|final version|copyright|"
+    # aperture, non scadenze: "submission site opens 1 January 2027"
+    r"\bopens?\b|\bopening\b|\bavailable from\b|submissions? open|"
+    # esiti, non scadenze: "Poster decisions start; decisions are rolling"
+    r"\bdecisions?\b|"
+    # bandi per OSPITARE la conferenza, non per sottomettere lavori
+    r"steering committee|top contenders|full proposal|bid to host|"
+    r"to host the conference|expression of interest|organi[sz]ing committee proposal", re.I)
 
 # tipo di deadline: prima regola che matcha vince
 TYPE_RULES: list[tuple[re.Pattern, str]] = [
@@ -258,13 +291,17 @@ TYPE_RULES: list[tuple[re.Pattern, str]] = [
 ]
 
 RE_EXTENDED = re.compile(r"extend", re.I)
+# usate per decidere se fidarsi del tipo di default (vedi extract())
+RE_STRONG = re.compile(r"deadline|due\b|closes|closing", re.I)
+RE_SUBMIT = re.compile(r"submission|submit|call for (?:papers|abstracts|contributions)|\bcfp\b", re.I)
 
 
-def classify(text: str, default: str) -> str:
+def classify(text: str, default: str) -> tuple[str, bool]:
+    """(tipo, e_generico). generico = nessuna regola ha matchato, si e' usato il default."""
     for rx, label in TYPE_RULES:
         if rx.search(text):
-            return label
-    return default
+            return label, False
+    return default, True
 
 
 # --------------------------------------------------------------------------
@@ -322,6 +359,9 @@ class Record:
     source: str
     note: str = ""
     extended: bool = False
+    generic: bool = False   # tipo non riconosciuto: e' finito nel catch-all di default
+    line: str = ""          # riga sorgente, per capire da dove viene una data sbagliata
+    strong: bool = False    # la riga contiene una vera parola-scadenza (deadline/due/closes)
 
     def key(self) -> tuple[str, str, str]:
         return (self.name.lower(), str(self.edition), self.type.lower())
@@ -335,7 +375,7 @@ class Record:
         }
 
 
-CONFIDENCE = {"official": 3, "inferred": 2, "past": 1, "tbd": 1}
+CONFIDENCE = {"official": 3, "inferred": 2, "directory": 2, "past": 1, "tbd": 1}
 
 
 def confidence(status: str) -> int:
@@ -344,6 +384,7 @@ def confidence(status: str) -> int:
 
 def extract(conf: Conference, url: str, html: str, edition: int) -> list[Record]:
     lines = html_to_lines(html)
+    has_date = [bool(find_dates(l, edition)) for l in lines]
     best: dict[str, Record] = {}
 
     for i, line in enumerate(lines):
@@ -352,10 +393,14 @@ def extract(conf: Conference, url: str, html: str, edition: int) -> list[Record]
             continue
 
         ctx = line
-        # se la data e' sola nella sua riga, guarda la riga prima e dopo
+        # Se la data e' sola nella sua riga, l'etichetta puo' stare nella riga
+        # accanto. MA solo se quella riga non ha gia' una data propria: due
+        # deadline consecutive non devono scambiarsi le etichette.
         if not KW_DEADLINE.search(ctx):
             for j in (i - 1, i + 1):
-                if 0 <= j < len(lines) and KW_DEADLINE.search(lines[j]) and len(lines[j]) < 160:
+                if not (0 <= j < len(lines)) or has_date[j]:
+                    continue
+                if KW_DEADLINE.search(lines[j]) and len(lines[j]) < 160:
                     ctx = f"{ctx} | {lines[j]}"
                     break
 
@@ -363,39 +408,66 @@ def extract(conf: Conference, url: str, html: str, edition: int) -> list[Record]
             continue
 
         f = dates[0]
-        typ = classify(ctx, conf.default_type)
+        typ, fallback = classify(ctx, conf.default_type)
+        # Il catch-all viene considerato affidabile solo se la riga dice
+        # chiaramente sia "deadline" sia "submission": cosi' "Submission
+        # deadline extended to X" resta, mentre "registration deadline" o
+        # "the conference takes place on X, submissions welcome" no.
+        generic = fallback and not (RE_STRONG.search(ctx) and RE_SUBMIT.search(ctx))
         note = "AoE" if re.search(r"\baoe\b|anywhere on earth", ctx, re.I) else ""
         if not f.explicit_year:
             note = (note + " · anno dedotto dalla pagina").strip(" ·")
         rec = Record(conf.name, str(edition), conf.full_name, typ,
                      f.date.isoformat(),
                      "official" if f.explicit_year else "inferred",
-                     url, note, bool(RE_EXTENDED.search(ctx)))
+                     url, note, bool(RE_EXTENDED.search(ctx)), generic, ctx[:200],
+                     strong=bool(RE_STRONG.search(ctx)))
 
         prev = best.get(typ)
         if prev is None or _better(rec, prev):
             best[typ] = rec
 
-    return list(best.values())
+    recs = list(best.values())
+    # Il tipo di default e' un catch-all: se la pagina ha prodotto anche tipi
+    # riconosciuti (talk/poster/paper/abstract), il catch-all e' quasi sempre
+    # rumore (date della conferenza, registrazione, righe generiche) -> via.
+    if any(not r.generic for r in recs):
+        recs = [r for r in recs if not r.generic]
+    return recs
 
 
 def _better(new: Record, old: Record) -> bool:
-    """Una deadline prorogata batte l'originale; un anno esplicito batte uno dedotto."""
-    return (new.extended, confidence(new.status)) > (old.extended, confidence(old.status))
+    """Ordine di preferenza fra due candidati dello stesso tipo.
+
+    1. la riga che dice esplicitamente "deadline/due/closes" batte quella che
+       parla di sottomissioni di sfuggita ("decisions are made within 2 weeks
+       of submission" non e' una scadenza);
+    2. una proroga batte la data originale;
+    3. un anno esplicito batte uno dedotto.
+    """
+    return ((new.strong, new.extended, confidence(new.status))
+            > (old.strong, old.extended, confidence(old.status)))
 
 
-def detect_edition(html: str, name: str, url: str) -> Optional[int]:
-    """Anno dell'edizione: prima dall'URL, poi dal titolo/testo della pagina."""
-    m = re.search(r"/(20\d{2})(?:[/_-]|$)", url)
-    if m:
-        return int(m[1])
+def detect_edition(html: str, name: str, url: str, hint: Optional[int] = None) -> Optional[int]:
+    """Anno dell'edizione: dall'URL, poi dal titolo della pagina, poi dall'indice.
+
+    Negli URL con piu' anni vince l'ULTIMO: qcrypt.net/2026/2027/ e' l'edizione
+    2027 ospitata sotto il sito 2026, non l'edizione 2026.
+    """
+    years = re.findall(r"/(20\d{2})(?=[/_-]|$)", url)
+    if years:
+        return int(years[-1])
     short = re.escape(name.split(" ")[0])
     m = re.search(rf"{short}\s*'?\s*(20\d{{2}})", html, re.I)
     if m:
         return int(m[1])
-    return None
+    return hint
 
 
+# --------------------------------------------------------------------------
+# 6. Rete (con cache su disco, cosi' i re-run sono veloci e gentili)
+# --------------------------------------------------------------------------
 
 class Fetcher:
     def __init__(self, offline=False, ttl_hours=12, timeout=30, verbose=False, use_cache=True):
@@ -473,12 +545,17 @@ def discover_links(html: str, base: str, years: list[int]) -> list[str]:
     return out[:8]
 
 
-def scrape(conf: Conference, fetcher: Fetcher, verbose=False) -> tuple[list[Record], Optional[int]]:
-    """Restituisce i record dell'edizione piu' avanzata trovata, + quell'edizione."""
+def scrape(conf: Conference, fetcher: Fetcher, verbose=False, keep_past=False,
+           extra_urls: tuple[str, ...] = ()) -> tuple[list[Record], Optional[int], bool]:
+    """(record pubblicabili, edizione, solo_date_passate).
+
+    extra_urls arriva dall'indice quantum.technology e viene provato per primo:
+    e' l'unico modo per seguire una conferenza che ha cambiato dominio.
+    """
     years = [TODAY.year, TODAY.year + 1, TODAY.year + 2]
     by_edition: dict[int, list[Record]] = {}
     seen_editions: set[int] = set()
-    urls = candidate_urls(conf, years)
+    urls = list(extra_urls) + [u for u in candidate_urls(conf, years) if u not in extra_urls]
     extra_done = False
 
     idx = 0
@@ -502,13 +579,156 @@ def scrape(conf: Conference, fetcher: Fetcher, verbose=False) -> tuple[list[Reco
             urls.extend(u for u in discover_links(html, conf.homes[0], years) if u not in urls)
 
     if not by_edition:
-        return [], (max(seen_editions) if seen_editions else None)
+        return [], (max(seen_editions) if seen_editions else None), False
+    return select_edition(by_edition, keep_past)
 
-    # preferisci l'edizione piu' recente che ha almeno una deadline futura
+
+def select_edition(by_edition: dict[int, list[Record]], keep_past: bool = False
+                   ) -> tuple[list[Record], Optional[int], bool]:
+    """Sceglie l'edizione da pubblicare.
+
+    Regola: pubblica solo un'edizione con almeno una deadline futura. Se sul
+    sito ci sono solo date passate vuol dire che stiamo leggendo l'archivio
+    dell'edizione appena conclusa, NON la call attiva: in quel caso non si
+    scrive niente e la conferenza resta 'tbd' in attesa della prossima call.
+    (con --keep-past i record vengono comunque salvati, ma marcati 'past')
+    """
+    now = TODAY.isoformat()
     future = [e for e, rs in by_edition.items()
-              if any(r.deadline and r.deadline >= TODAY.isoformat() for r in rs)]
-    edition = max(future) if future else max(by_edition)
-    return by_edition[edition], edition
+              if any(r.deadline and r.deadline >= now for r in rs)]
+    if future:
+        edition = max(future)
+        return _drop_generic(by_edition[edition]), edition, False
+
+    edition = max(by_edition)
+    if not keep_past:
+        return [], edition, True
+    stale = [replace(r, status="past") for r in _drop_generic(by_edition[edition])]
+    return stale, edition, True
+
+
+def _drop_generic(recs: list[Record]) -> list[Record]:
+    """Stesso filtro di extract(), riapplicato dopo aver unito piu' pagine."""
+    return [r for r in recs if not r.generic] if any(not r.generic for r in recs) else recs
+
+
+# --------------------------------------------------------------------------
+# 6bis. Indice esterno: quantum.technology/conf/<anno>.html
+#
+# E' una lista curata di conferenze quantum con, per ognuna: il link al sito
+# ufficiale dell'edizione e le deadline dentro l'attributo title del link.
+# Serve a due cose:
+#   a) scoprire il sito quando una conferenza cambia dominio (QTML, QCMC...);
+#   b) avere una deadline di riserva se il sito ufficiale non e' parsabile.
+# Le date da qui valgono meno di quelle prese dal sito ufficiale.
+# --------------------------------------------------------------------------
+
+DIRECTORY_BASE = "https://quantum.technology/conf/"
+DIRECTORY_PAGES = ("{year}.html", "index.html")
+
+# Nell'indice le deadline sono righe "Etichetta: valore"
+DIR_TYPES: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"talk\s*abstract|talk", re.I), "Talk submission"),
+    (re.compile(r"poster", re.I), "Poster submission"),
+    (re.compile(r"paper", re.I), "Technical paper"),
+    (re.compile(r"abstract", re.I), "Abstract submission"),
+    (re.compile(r"submission|submit", re.I), "Submission"),
+]
+# etichette che NON sono deadline di sottomissione
+DIR_SKIP = re.compile(r"registration|tickets|early ?bird|financial|travel|application|visa", re.I)
+RE_LI_START = re.compile(r"^\s*(TBA|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)", re.I)
+
+
+@dataclass
+class DirEntry:
+    label: str          # testo completo della voce (contiene l'acronimo)
+    url: str            # sito ufficiale dell'edizione
+    deadlines: list[tuple[str, str]]   # [(etichetta, testo della data)]
+    year: int
+
+
+def parse_directory(html: str, fallback_year: int) -> list[DirEntry]:
+    soup = BeautifulSoup(html, "html.parser")
+    m = re.search(r"(20\d{2})\s*Conf", soup.get_text(" ", strip=True))
+    year = int(m[1]) if m else fallback_year
+
+    entries: list[DirEntry] = []
+    for a in soup.find_all("a", href=True):
+        li = a.find_parent("li")
+        if li is None:
+            continue
+        label = clean(li.get_text(" ", strip=True))
+        # le voci di conferenza iniziano con il mese ("Aug 23-27: ...") o "TBA";
+        # cosi' si scartano i link di menu/navigazione
+        if not RE_LI_START.match(label):
+            continue
+        url = a["href"].strip()
+        if not url.startswith(("http://", "https://")):
+            continue
+
+        deadlines = []
+        for part in re.split(r"\n|#13;|\r", a.get("title", "")):
+            part = clean(part)
+            if ":" not in part:
+                continue
+            lab, _, val = part.partition(":")
+            deadlines.append((clean(lab), clean(val)))
+        entries.append(DirEntry(label, url, deadlines, year))
+    return entries
+
+
+def fetch_directory(fetcher: Fetcher, years: list[int], verbose=False) -> list[DirEntry]:
+    entries: list[DirEntry] = []
+    seen_urls: set[str] = set()
+    for year in years:
+        for tmpl in DIRECTORY_PAGES:
+            url = DIRECTORY_BASE + tmpl.format(year=year)
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+            html = fetcher.get(url)
+            if not html:
+                continue
+            try:
+                found = parse_directory(html, year)
+            except Exception as exc:
+                print(f"! indice {url} non parsabile: {type(exc).__name__}", file=sys.stderr)
+                continue
+            if verbose:
+                print(f"    indice {url}: {len(found)} voci")
+            entries.extend(found)
+    return entries
+
+
+def directory_for(conf: Conference, entries: list[DirEntry]) -> list[DirEntry]:
+    """Voci dell'indice che riguardano questa conferenza, edizione piu' recente prima."""
+    mine = [e for e in entries if conf.matches(e.label)]
+    return sorted(mine, key=lambda e: e.year, reverse=True)
+
+
+def directory_records(conf: Conference, entries: list[DirEntry]) -> tuple[list[str], list[Record]]:
+    """(url da provare, record di riserva ricavati dall'indice)."""
+    urls: list[str] = []
+    recs: list[Record] = []
+    for e in directory_for(conf, entries):
+        if e.url not in urls:
+            urls.append(e.url)
+        for lab, val in e.deadlines:
+            if DIR_SKIP.search(lab) or not val or re.fullmatch(r"TBA(\s+20\d{2})?", val, re.I):
+                continue
+            dates = [f for f in find_dates(val, e.year) if plausible(f.date, e.year)]
+            if not dates:
+                continue
+            typ = next((t for rx, t in DIR_TYPES if rx.search(lab)), conf.default_type)
+            recs.append(Record(
+                conf.name, str(e.year), conf.full_name, typ,
+                dates[0].date.isoformat(), "directory", e.url,
+                "via quantum.technology/conf"))
+    # una sola data per tipo, quella dell'edizione piu' recente (gia' ordinata)
+    best: dict[str, Record] = {}
+    for r in recs:
+        best.setdefault(r.type, r)
+    return urls, list(best.values())
 
 
 # --------------------------------------------------------------------------
@@ -645,6 +865,87 @@ def selftest() -> int:
     check(recs["Submission"].deadline == "2026-10-12" and recs["Submission"].extended,
           "proroga non riconosciuta")
 
+    # --- regressioni viste sul run reale ---
+
+    # 1. due deadline consecutive non devono scambiarsi l'etichetta:
+    #    la riga con la sola data non puo' rubare la label a una riga gia' datata
+    html_pair = """<ul>
+      <li>Talk submission deadline: 5 Oct 2026</li>
+      <li>19 Oct 2026</li>
+      <li>Poster submission deadline</li></ul>"""
+    r2 = {r.type: r.deadline for r in extract(conf, "https://x/2027/", html_pair, 2027)}
+    check(r2.get("Talk submission") == "2026-10-05", "talk submission alterata")
+    check(r2.get("Poster submission") == "2026-10-19",
+          f"poster agganciato male: {r2.get('Poster submission')}")
+
+    # 2. il catch-all "Submission" sparisce se la pagina ha tipi riconosciuti
+    html_noise = """<ul><li>Talk submission deadline: 5 Oct 2026</li>
+      <li>The conference takes place on 26 February 2027, submissions welcome</li></ul>"""
+    types = {r.type for r in extract(conf, "https://x/", html_noise, 2027)}
+    check(types == {"Talk submission"}, f"catch-all non filtrato: {types}")
+    # ...ma resta se e' l'unico tipo presente
+    only_generic = extract(conf, "https://x/", "<p>Submission deadline: 3 March 2027</p>", 2027)
+    check([r.type for r in only_generic] == ["Submission"], "catch-all rimosso a torto")
+
+    # 3. un'edizione con sole date passate non va pubblicata come attiva
+    past = Record("X", "2026", "x", "Submission", "2026-03-13", "official", "s")
+    fut = Record("X", "2027", "x", "Submission", "2027-03-13", "official", "s")
+    recs_sel, ed, only_past = select_edition({2026: [past]})
+    check(recs_sel == [] and ed == 2026 and only_past, "archivio pubblicato come call attiva")
+    recs_sel, ed, only_past = select_edition({2026: [past]}, keep_past=True)
+    check(recs_sel[0].status == "past", "--keep-past non marca i record")
+    recs_sel, ed, only_past = select_edition({2026: [past], 2027: [fut]})
+    check(ed == 2027 and not only_past, "edizione futura non preferita")
+
+    # 4. casi reali visti su qipconference.org e qcrypt.net (agosto 2026)
+    qip_real = """<table>
+    <tr><td>28 Sep 2026</td><td>Talk registration deadline</td></tr>
+    <tr><td>5 Oct 2026</td><td>Talk submission deadline</td></tr>
+    <tr><td>5 Oct 2026</td><td>Poster decisions start; decisions are rolling and made within 2 weeks of submission</td></tr>
+    <tr><td>30 Nov 2026</td><td>Decision notification for talks</td></tr>
+    <tr><td>4 Dec 2026</td><td>Poster submission deadline</td></tr>
+    <tr><td>20 Dec 2026</td><td>Early Bird Registration Closes</td></tr>
+    <tr><td>20 Jan 2027</td><td>Registration Closes</td></tr>
+    <tr><td>20 - 26 Feb 2027</td><td>QIP 2027</td></tr></table><p>20-26 February 2027</p>"""
+    got = {r.type: r.deadline for r in extract(conf, "https://qipconference.org/2027/", qip_real, 2027)}
+    check(got == {"Talk registration": "2026-09-28", "Talk submission": "2026-10-05",
+                  "Poster submission": "2026-12-04"}, f"tabella QIP reale: {got}")
+
+    # pagina "Organize QCrypt 2027": e' un bando per OSPITARE, non una CFP
+    host_page = """<h1>QCrypt 2027</h1>
+    <p>QCrypt 2027 will be hosted in Vienna, Austria, August 23-27, 2027.</p>
+    <p>The steering committee will request the top contenders, by January 1, 2027,
+    to submit a full proposal, to be submitted by January 31, 2027.</p>"""
+    qc0 = Conference("QCrypt", "Quantum Cryptography", ("https://qcrypt.net/",))
+    check(extract(qc0, "https://qcrypt.net/2026/2027/", host_page, 2027) == [],
+          "bando di hosting scambiato per CFP")
+
+    # 5. indice quantum.technology: scoperta URL + deadline di riserva
+    dir_html = """<h1>2027 Conferences</h1><ul>
+      <li><a href="https://quantum.technology/index.html">Home</a></li>
+      <li><b>Aug 23-27:</b> <a href="https://qcrypt.net/2026/2027/"
+         title="Abstract: 3 March 2027&#13;Early bird registration: TBA 2026">QCrypt 2027</a>, Vienna.</li>
+      <li><b>TBA:</b> <a href="http://www.qcmc-conference.org"
+         title="Abstract: TBA 2026&#13;Registration: TBA 2026">17th International Conference on
+         Quantum Communication, Measurement and Computing</a> (QCMC 2027), TBA.</li></ul>"""
+    entries = parse_directory(dir_html, 2027)
+    check(len(entries) == 2, f"link di menu non filtrati: {len(entries)} voci")
+
+    qcmc = Conference("QCMC", "Quantum Communication, Measurement and Computing",
+                      ("https://qcmc.org/",), aliases=("QCMC",))
+    urls, recs_dir = directory_records(qcmc, entries)
+    check(urls == ["http://www.qcmc-conference.org"], f"URL non scoperto: {urls}")
+    check(recs_dir == [], "TBA trasformato in data")
+
+    qc = Conference("QCrypt", "Quantum Cryptography", ("https://qcrypt.net/",), aliases=("QCrypt",))
+    urls, recs_dir = directory_records(qc, entries)
+    check([(r.type, r.deadline, r.status) for r in recs_dir]
+          == [("Abstract submission", "2027-03-03", "directory")], f"indice: {recs_dir}")
+    check(confidence("directory") < confidence("official"), "l'indice non deve battere il sito")
+
+    # URL con due anni: vince l'ultimo (edizione 2027 ospitata sotto il sito 2026)
+    check(detect_edition("", "QCrypt", "https://qcrypt.net/2026/2027/") == 2027, "edizione errata")
+
     # formati numerici e ambiguita' giorno/mese
     check(find_dates("deadline 03/09/2026", 2027)[0].date == datetime.date(2026, 9, 3), "d/m/Y errata")
     check(find_dates("deadline 09/13/2026", 2027)[0].date == datetime.date(2026, 9, 13), "m/d/Y errata")
@@ -675,6 +976,49 @@ def selftest() -> int:
     return 0
 
 
+def explain(url: str, timeout: int = 30) -> int:
+    """Diagnostica: mostra come viene letta UNA pagina, riga per riga.
+
+    Serve quando una data esce sbagliata e non si capisce da dove arrivi.
+    """
+    fetcher = Fetcher(timeout=timeout, verbose=True)
+    html = fetcher.get(url)
+    if not html:
+        print("pagina non raggiungibile")
+        return 1
+    edition = detect_edition(html, "", url) or (TODAY.year + 1)
+    print(f"edizione dedotta: {edition}\n")
+    lines = html_to_lines(html)
+    has_date = [bool(find_dates(l, edition)) for l in lines]
+    for i, line in enumerate(lines):
+        dates = find_dates(line, edition)
+        if not dates:
+            continue
+        ok = [f for f in dates if plausible(f.date, edition)]
+        short = line[:150]
+        if not ok:
+            print(f"[scartata: data implausibile] {short}")
+            continue
+        ctx = line
+        if not KW_DEADLINE.search(ctx):
+            for j in (i - 1, i + 1):
+                if 0 <= j < len(lines) and not has_date[j] and KW_DEADLINE.search(lines[j]) \
+                        and len(lines[j]) < 160:
+                    ctx = f"{ctx} | {lines[j]}"
+                    break
+        if not KW_DEADLINE.search(ctx):
+            print(f"[scartata: nessuna parola-deadline] {short}")
+        elif KW_BLOCK.search(ctx):
+            hit = KW_BLOCK.search(ctx)[0]
+            print(f"[scartata: '{hit}'] {short}")
+        else:
+            typ, fallback = classify(ctx, "Submission")
+            gen = fallback and not (RE_STRONG.search(ctx) and RE_SUBMIT.search(ctx))
+            flag = " (catch-all, scartato se la pagina ha tipi specifici)" if gen else ""
+            print(f"[TENUTA {ok[0].date} -> {typ}{flag}] {short}")
+    return 0
+
+
 # --------------------------------------------------------------------------
 # 9. main
 # --------------------------------------------------------------------------
@@ -687,6 +1031,12 @@ def main() -> int:
     ap.add_argument("--no-cache", action="store_true")
     ap.add_argument("--cache-ttl", type=int, default=12, help="ore di validita' della cache")
     ap.add_argument("--timeout", type=int, default=30)
+    ap.add_argument("--explain", metavar="URL",
+                    help="stampa riga per riga come viene analizzata una singola pagina")
+    ap.add_argument("--no-directory", action="store_true",
+                    help="non usare l'indice quantum.technology/conf")
+    ap.add_argument("--keep-past", action="store_true",
+                    help="salva anche le edizioni con sole date passate, marcate 'past'")
     ap.add_argument("--dry-run", action="store_true", help="non scrive data.json")
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--selftest", action="store_true")
@@ -694,6 +1044,9 @@ def main() -> int:
 
     if args.selftest:
         return selftest()
+
+    if args.explain:
+        return explain(args.explain, args.timeout)
 
     confs = load_overrides(CONFERENCES)
     if args.only:
@@ -705,6 +1058,17 @@ def main() -> int:
     items = json.loads(args.data.read_text(encoding="utf-8")) if args.data.exists() else []
     fetcher = Fetcher(args.offline, args.cache_ttl, args.timeout, args.verbose, not args.no_cache)
 
+    years = [TODAY.year, TODAY.year + 1, TODAY.year + 2]
+    dir_entries: list[DirEntry] = []
+    if not args.no_directory:
+        print("-> indice quantum.technology/conf")
+        try:
+            dir_entries = fetch_directory(fetcher, years, args.verbose)
+            print(f"   {len(dir_entries)} conferenze indicizzate")
+        except Exception as exc:
+            print(f"   indice non raggiungibile ({type(exc).__name__}), si prosegue "
+                  "con i soli siti ufficiali")
+
     all_fresh: list[Record] = []
     editions: dict[str, Optional[int]] = {}
     touched: set[str] = set()
@@ -712,16 +1076,54 @@ def main() -> int:
 
     for c in confs:
         print(f"-> {c.name}")
+        dir_urls, dir_recs = directory_records(c, dir_entries)
+        if dir_urls and args.verbose:
+            print(f"    indice -> {', '.join(dir_urls[:3])}")
         try:
-            recs, edition = scrape(c, fetcher, args.verbose)
+            recs, edition, only_past = scrape(c, fetcher, args.verbose, args.keep_past,
+                                              tuple(dir_urls))
         except Exception as exc:  # regola 4: nessuna conferenza puo' far saltare il run
             summary.append(f"   {c.name}: ERRORE {type(exc).__name__}: {exc} (dati precedenti mantenuti)")
             continue
         touched.add(c.name)
-        editions[c.name] = edition
+        # se leggiamo l'archivio di un'edizione chiusa, il placeholder deve
+        # puntare alla prossima edizione, non a quella appena finita
+        editions[c.name] = (edition + 1 if only_past and edition and edition <= TODAY.year
+                            else edition)
+        site_types = {r.type for r in recs}
+        site_dates = {r.deadline for r in recs}
+        # dall'indice si prende solo quello che il sito non ha gia' dato,
+        # e solo deadline ancora aperte (stessa data = stesso evento, non doppione)
+        fallback = [r for r in dir_recs
+                    if r.type not in site_types and r.deadline not in site_dates
+                    and (args.keep_past or (r.deadline or "") >= TODAY.isoformat())]
+        # l'indice va inserito PRIMA del sito: a parita' di confidenza vince l'ultimo
+        all_fresh.extend(fallback)
         all_fresh.extend(recs)
+
+        # provenienza: con -v si vede da quale riga arriva ogni data
+        if args.verbose:
+            for r in recs + fallback:
+                print(f"      {r.type} = {r.deadline}  <-  {r.line or '[indice]'}")
+                print(f"          fonte: {r.source}")
+
+        # due tipi con la stessa data sono quasi sempre un errore di aggancio
+        dupes = [d for d, n in Counter(r.deadline for r in recs).items() if n > 1]
+        for d in dupes:
+            tipi = ", ".join(r.type for r in recs if r.deadline == d)
+            summary.append(f"   ! {c.name}: {d} assegnata a piu' tipi ({tipi})"
+                           " - verifica con -v, potrebbe essere un aggancio sbagliato")
+
+        shown = ", ".join(f"{r.type}={r.deadline}" for r in recs)
+        extra = ", ".join(f"{r.type}={r.deadline} [indice]" for r in fallback)
+        both = ", ".join(x for x in (shown, extra) if x)
         if recs:
-            summary.append(f"   {c.name} {edition}: " + ", ".join(f"{r.type}={r.deadline}" for r in recs))
+            summary.append(f"   {c.name} {edition}: {both}")
+        elif fallback:
+            summary.append(f"   {c.name}: sito non parsabile, dall'indice -> {extra}")
+        elif only_past:
+            summary.append(f"   {c.name}: sul sito solo date passate (edizione {edition}, call chiusa)"
+                           " -> in attesa della prossima edizione")
         else:
             summary.append(f"   {c.name}: nessuna data trovata"
                            + (f" (edizione {edition})" if edition else " (pagina irraggiungibile)"))

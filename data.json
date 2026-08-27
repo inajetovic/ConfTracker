@@ -1,43 +1,36 @@
 [
   {
-    "name": "QCrypt",
+    "name": "QIP",
     "edition": "2027",
-    "fullName": "Quantum Cryptography",
-    "type": "Submission",
-    "deadline": null,
-    "status": "tbd",
-    "source": "https://qcrypt.net/2025/2026/",
-    "note": "2027 is planned for Vienna; CFP deadline not yet published"
+    "fullName": "Quantum Information Processing",
+    "type": "Talk registration",
+    "deadline": "2026-09-28",
+    "status": "official",
+    "source": "https://qipconference.org/2027/",
+    "note": "23:59 AoE",
+    "lastChecked": "2026-08-27"
   },
   {
-    "name": "TQC",
+    "name": "QIP",
     "edition": "2027",
-    "fullName": "Theory of Quantum Computation, Communication and Cryptography",
-    "type": "Submission",
-    "deadline": null,
-    "status": "tbd",
-    "source": "https://tqc-conference.org/2026/2027/",
-    "note": "Grenoble; deadline not yet published"
+    "fullName": "Quantum Information Processing",
+    "type": "Talk submission",
+    "deadline": "2026-10-05",
+    "status": "official",
+    "source": "https://qipconference.org/2027/",
+    "note": "23:59 AoE",
+    "lastChecked": "2026-08-27"
   },
   {
-    "name": "QTML",
+    "name": "QIP",
     "edition": "2027",
-    "fullName": "Quantum Techniques in Machine Learning",
-    "type": "Submission",
-    "deadline": null,
-    "status": "tbd",
-    "source": "https://qtml2026.nithecs.ac.za/",
-    "note": "2027 deadline not yet published"
-  },
-  {
-    "name": "QCTiP",
-    "edition": "2027",
-    "fullName": "Quantum Computing Theory in Practice",
-    "type": "Submission",
-    "deadline": null,
-    "status": "tbd",
-    "source": "https://qctipconf.github.io/",
-    "note": "Location and deadline not yet published"
+    "fullName": "Quantum Information Processing",
+    "type": "Poster submission",
+    "deadline": "2026-12-04",
+    "status": "official",
+    "source": "https://qipconference.org/2027/",
+    "note": "",
+    "lastChecked": "2026-08-27"
   },
   {
     "name": "AQIS",
@@ -50,13 +43,24 @@
     "note": "2026 edition; submission deadline has passed"
   },
   {
-    "name": "QCNC",
+    "name": "AQIS",
     "edition": "2027",
-    "fullName": "Quantum Communications, Networking, and Computing",
+    "fullName": "Asian Quantum Information Science Conference",
     "type": "Submission",
     "deadline": null,
     "status": "tbd",
-    "source": "https://www.ieee-qcnc.org/",
+    "source": "https://aqis-conf.org/",
+    "note": "deadline non ancora pubblicata",
+    "lastChecked": "2026-08-27"
+  },
+  {
+    "name": "IEEE QCE / Quantum Week",
+    "edition": "2027",
+    "fullName": "IEEE International Conference on Quantum Computing and Engineering",
+    "type": "Technical paper",
+    "deadline": null,
+    "status": "tbd",
+    "source": "https://qce.quantum.ieee.org/",
     "note": "2027 deadline not yet published"
   },
   {
@@ -70,13 +74,54 @@
     "note": "2027 deadline not yet published"
   },
   {
-    "name": "IEEE QCE / Quantum Week",
-    "edition": "2027",
-    "fullName": "IEEE International Conference on Quantum Computing and Engineering",
-    "type": "Technical paper",
+    "name": "QCMC",
+    "edition": "2028",
+    "fullName": "Quantum Communication, Measurement and Computing",
+    "type": "Submission",
     "deadline": null,
     "status": "tbd",
-    "source": "https://qce.quantum.ieee.org/",
+    "source": "https://qcmc.org/",
+    "note": "deadline non ancora pubblicata",
+    "lastChecked": "2026-08-27"
+  },
+  {
+    "name": "QCNC",
+    "edition": "2027",
+    "fullName": "Quantum Communications, Networking, and Computing",
+    "type": "Submission",
+    "deadline": null,
+    "status": "tbd",
+    "source": "https://www.ieee-qcnc.org/",
+    "note": "2027 deadline not yet published"
+  },
+  {
+    "name": "QCTiP",
+    "edition": "2027",
+    "fullName": "Quantum Computing Theory in Practice",
+    "type": "Submission",
+    "deadline": null,
+    "status": "tbd",
+    "source": "https://qctipconf.github.io/",
+    "note": "Location and deadline not yet published"
+  },
+  {
+    "name": "QCrypt",
+    "edition": "2027",
+    "fullName": "Quantum Cryptography",
+    "type": "Submission",
+    "deadline": null,
+    "status": "tbd",
+    "source": "https://qcrypt.net/2025/2026/",
+    "note": "2027 is planned for Vienna; CFP deadline not yet published"
+  },
+  {
+    "name": "QPL",
+    "edition": "2027",
+    "fullName": "Quantum Physics and Logic",
+    "type": "Submission",
+    "deadline": null,
+    "status": "tbd",
+    "source": "https://qplconference.org/",
     "note": "2027 deadline not yet published"
   },
   {
@@ -90,33 +135,23 @@
     "note": "2027 deadline not yet published"
   },
   {
-    "name": "QPL",
+    "name": "QTML",
     "edition": "2027",
-    "fullName": "Quantum Physics and Logic",
+    "fullName": "Quantum Techniques in Machine Learning",
     "type": "Submission",
     "deadline": null,
     "status": "tbd",
-    "source": "https://qplconference.org/",
+    "source": "https://qtml2026.nithecs.ac.za/",
     "note": "2027 deadline not yet published"
   },
   {
-    "name": "QIP",
+    "name": "TQC",
     "edition": "2027",
-    "fullName": "Quantum Information Processing",
-    "type": "Talk registration",
-    "deadline": "2026-09-28",
-    "status": "official",
-    "source": "https://qipconference.org/2027/",
-    "note": "23:59 AoE"
-  },
-  {
-    "name": "QIP",
-    "edition": "2027",
-    "fullName": "Quantum Information Processing",
-    "type": "Talk submission",
-    "deadline": "2026-10-05",
-    "status": "official",
-    "source": "https://qipconference.org/2027/",
-    "note": "23:59 AoE"
+    "fullName": "Theory of Quantum Computation, Communication and Cryptography",
+    "type": "Submission",
+    "deadline": null,
+    "status": "tbd",
+    "source": "https://tqc-conference.org/2026/2027/",
+    "note": "Grenoble; deadline not yet published"
   }
 ]
