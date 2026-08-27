@@ -19,6 +19,13 @@ h1{font-size:34px;margin:0 0 8px}.sub{color:var(--muted);max-width:850px}.badge{
 <div class="stats"><div class="stat"><b id="all">0</b><span>active deadline entries</span></div><div class="stat"><b id="soon">0</b><span>due within 30 days</span></div><div class="stat"><b id="tbd">0</b><span>TBD deadlines</span></div><div class="stat"><b id="past">0</b><span>past entries</span></div></div>
 <div class="toolbar"><input id="q" placeholder="Search QIP, QCrypt, QML…"><select id="f"><option value="all">All</option><option value="upcoming">Upcoming</option><option value="soon">≤ 30 days</option><option value="tbd">TBD</option><option value="past">Past</option></select></div>
 <div id="grid" class="grid"></div>
+<footer style="margin-top:36px;padding-top:18px;border-top:1px solid var(--border);color:var(--muted);font-size:13px;line-height:1.6">
+    Deadlines are collected automatically from each conference's official site and from the
+    <a href="https://quantum.technology/conf/index.html" target="_blank" rel="noopener"
+       style="color:var(--accent);text-decoration:none">Quantum Technology Lab conference list ↗</a>,
+    a curated calendar of quantum conferences maintained by Andrew White (University of Queensland).
+    Check it out — it covers far more meetings than the ones tracked here.
+  </footer>
 </div>
 <script>
 let items=[];
