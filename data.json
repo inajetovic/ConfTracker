@@ -1,6 +1,17 @@
 [
   {
     "name": "QIP",
+    "edition": "2026",
+    "fullName": "Quantum Information Processing",
+    "type": "Abstract submission",
+    "deadline": "2026-09-01",
+    "status": "directory",
+    "source": "https://iop.eventsair.com/sqip-2026/",
+    "note": "via quantum.technology/conf",
+    "lastChecked": "2026-08-31"
+  },
+  {
+    "name": "QIP",
     "edition": "2027",
     "fullName": "Quantum Information Processing",
     "type": "Talk registration",
@@ -8,7 +19,7 @@
     "status": "official",
     "source": "https://qipconference.org/2027/",
     "note": "23:59 AoE",
-    "lastChecked": "2026-08-27"
+    "lastChecked": "2026-08-31"
   },
   {
     "name": "QIP",
@@ -19,7 +30,7 @@
     "status": "official",
     "source": "https://qipconference.org/2027/",
     "note": "23:59 AoE",
-    "lastChecked": "2026-08-27"
+    "lastChecked": "2026-08-31"
   },
   {
     "name": "QIP",
@@ -30,7 +41,7 @@
     "status": "official",
     "source": "https://qipconference.org/2027/",
     "note": "",
-    "lastChecked": "2026-08-27"
+    "lastChecked": "2026-08-31"
   },
   {
     "name": "AQIS",
