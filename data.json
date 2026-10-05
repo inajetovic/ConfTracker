@@ -19,7 +19,7 @@
     "status": "official",
     "source": "https://qipconference.org/2027/",
     "note": "23:59 AoE",
-    "lastChecked": "2026-09-28"
+    "lastChecked": "2026-10-05"
   },
   {
     "name": "QIP",
@@ -30,7 +30,7 @@
     "status": "official",
     "source": "https://qipconference.org/2027/call/",
     "note": "",
-    "lastChecked": "2026-09-28"
+    "lastChecked": "2026-10-05"
   },
   {
     "name": "QIP",
@@ -41,7 +41,7 @@
     "status": "official",
     "source": "https://qipconference.org/2027/",
     "note": "23:59 AoE",
-    "lastChecked": "2026-09-28"
+    "lastChecked": "2026-10-05"
   },
   {
     "name": "QIP",
@@ -52,7 +52,18 @@
     "status": "official",
     "source": "https://qipconference.org/2027/",
     "note": "",
-    "lastChecked": "2026-09-28"
+    "lastChecked": "2026-10-05"
+  },
+  {
+    "name": "QIP",
+    "edition": "2027",
+    "fullName": "Quantum Information Processing",
+    "type": "Submission",
+    "deadline": "2027-01-06",
+    "status": "directory",
+    "source": "https://uwaterloo.ca/institute-for-quantum-computing/outreach/useqip",
+    "note": "via quantum.technology/conf",
+    "lastChecked": "2026-10-05"
   },
   {
     "name": "QIP",
@@ -63,7 +74,7 @@
     "status": "official",
     "source": "https://qipconference.org/2027/",
     "note": "",
-    "lastChecked": "2026-09-28"
+    "lastChecked": "2026-10-05"
   },
   {
     "name": "AQIS",
